@@ -30,6 +30,7 @@ config.set_main_option("sqlalchemy.url", db_url)
 
 # Rest of the standard Alembic setup configurations
 from app.database.connection import Base
+from app.database.models import patient
 target_metadata = Base.metadata
 
 

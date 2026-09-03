@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityShell } from '../../activities/shared/ActivityShell';
 import { CategorizationActivity } from '../../activities/Categorization/CategorizationActivity';
 import { useSessionStore } from '../../store/session.store';
+import { ReminiscenceActivity } from '../../activities/Reminiscence/ReminiscenceActivity';
 
 interface ActivityRendererProps {
   activityType: 'categorization' | 'matching' | 'reminiscence' | 'sequencing';
@@ -34,6 +35,18 @@ export const ActivityRenderer: React.FC<ActivityRendererProps> = ({
           onAbandon={handleAbandon}
         >
           <CategorizationActivity />
+        </ActivityShell>
+      );
+
+    case 'reminiscence':
+      return (
+        <ActivityShell 
+          title="Cultural Memory Echoes" 
+          instructionText="Look at the familiar regional item and touch how it makes you feel."
+          assistanceLevel={assistanceLevel}
+          onAbandon={handleAbandon}
+        >
+          <ReminiscenceActivity />
         </ActivityShell>
       );
 

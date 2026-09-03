@@ -22,5 +22,4 @@ def get_db():
         db.close()
 
 # Expose core structural layout maps to ensure Alembic auto-generates tables cleanly
-from app.database.models.patient import Caregiver, Patient, Activity, ContentItem, Session, Interaction, AdaptationState, AdaptationDecision
 
