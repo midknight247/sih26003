@@ -6,7 +6,7 @@ export const PatientSessionPage: React.FC = () => {
   return (
     <div style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '20px' }}>
       <ActivityRenderer 
-        activityType="reminiscence" 
+        activityType="matching" 
         difficulty="medium" 
         assistanceLevel={1} 
       />

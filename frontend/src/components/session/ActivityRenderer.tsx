@@ -3,6 +3,8 @@ import { ActivityShell } from '../../activities/shared/ActivityShell';
 import { CategorizationActivity } from '../../activities/Categorization/CategorizationActivity';
 import { useSessionStore } from '../../store/session.store';
 import { ReminiscenceActivity } from '../../activities/Reminiscence/ReminiscenceActivity';
+import { PairsMatchingActivity } from '../../activities/PairsMatching/PairsMatchingActivity';
+
 
 interface ActivityRendererProps {
   activityType: 'categorization' | 'matching' | 'reminiscence' | 'sequencing';
@@ -47,6 +49,18 @@ export const ActivityRenderer: React.FC<ActivityRendererProps> = ({
           onAbandon={handleAbandon}
         >
           <ReminiscenceActivity />
+        </ActivityShell>
+      );
+
+    case 'matching':
+      return (
+        <ActivityShell 
+          title="Familiar Pairs Matching" 
+          instructionText="Touch cards to discover related items from the local region."
+          assistanceLevel={assistanceLevel}
+          onAbandon={handleAbandon}
+        >
+          <PairsMatchingActivity />
         </ActivityShell>
       );
 
