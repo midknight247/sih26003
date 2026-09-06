@@ -4,6 +4,8 @@ import { CategorizationActivity } from '../../activities/Categorization/Categori
 import { useSessionStore } from '../../store/session.store';
 import { ReminiscenceActivity } from '../../activities/Reminiscence/ReminiscenceActivity';
 import { PairsMatchingActivity } from '../../activities/PairsMatching/PairsMatchingActivity';
+import { RoutineSequencingActivity } from '../../activities/Sequencing/RoutineSequencingActivity';
+
 
 
 interface ActivityRendererProps {
@@ -63,6 +65,18 @@ export const ActivityRenderer: React.FC<ActivityRendererProps> = ({
           <PairsMatchingActivity />
         </ActivityShell>
       );
+    case 'sequencing':
+      return (
+        <ActivityShell 
+          title="Everyday Routine Sequencing" 
+          instructionText="Arrange the tasks below in the correct chronological sequence timeline."
+          assistanceLevel={assistanceLevel}
+          onAbandon={handleAbandon}
+        >
+          <RoutineSequencingActivity />
+        </ActivityShell>
+      );
+  
 
     default:
       return (
