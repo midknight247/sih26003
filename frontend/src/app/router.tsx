@@ -14,6 +14,8 @@ import { SessionStartPage } from '../pages/Session/SessionStartPage';
 import { PatientSessionPage } from '../pages/Session/PatientSessionPage';
 import { SessionSummaryPage } from '../pages/Session/SessionSummaryPage';
 
+
+
 export const router = createBrowserRouter([
   {
     path: '/',

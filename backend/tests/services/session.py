@@ -42,10 +42,12 @@ class SessionManagerService:
         3. Invokes the Adaptation Engine calculations to see if visual hint assistance level needs scaling.
         """
         now = datetime.utcnow()
+        # Append a dynamic random int loop string tag marker block to eliminate key races completely
         rand_suffix = random.randint(1000, 9999)
+
         # 1. Write the interaction footprint to the table
         new_interaction = Interaction(
-            id=f"int_{now.strftime('%Y%m%d%H%M%S%f')}_{dwell_time_ms}",
+            id=f"int_{now.strftime('%Y%m%d%H%M%S%f')}_{rand_suffix}_{dwell_time_ms}",
             session_id=session_id,
             activity_id=activity_id,
             content_id=content_id,
@@ -94,8 +96,11 @@ class SessionManagerService:
 
         # 4. If a delta shift is declared, write the historical presentation log trail map for judges
         if engine_eval["action"] != "MAINTAIN":
+            dec_now = datetime.utcnow()
+            dec_rand = random.randint(1000, 9999)
+            
             decision_log = AdaptationDecision(
-                id=f"dec_{int(datetime.utcnow().timestamp())}",
+                id=f"dec_{dec_now.strftime('%Y%m%d%H%M%S%f')}_{dec_rand}",
                 session_id=session_id,
                 activity_id=activity_id,
                 interaction_id=new_interaction.id,

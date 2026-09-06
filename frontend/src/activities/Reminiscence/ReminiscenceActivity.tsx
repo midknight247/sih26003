@@ -10,7 +10,8 @@ interface ReminiscenceItem {
 }
 
 export const ReminiscenceActivity: React.FC = () => {
-  const logInteraction = useSessionStore((state) => state.logInteraction);
+  // Extract our live network-synchronized telemetry action from the Rule 3 store hook
+  const logInteractionTelemetry = useSessionStore((state) => state.logInteractionTelemetry);
   const nextStep = useSessionStore((state) => state.nextStep);
 
   // Seeded regional memory anchors specific to the Northeast Region (NER)
@@ -45,7 +46,7 @@ export const ReminiscenceActivity: React.FC = () => {
 
   const currentItem = memoryPool[currentIndex];
 
-  const handlePatientReaction = (feeling: 'happy' | 'thoughtful' | 'unsure') => {
+  const handlePatientReaction = async (feeling: 'happy' | 'thoughtful' | 'unsure') => {
     const clickTime = Date.now();
     const dwellTime = clickTime - startTime;
 
@@ -53,13 +54,14 @@ export const ReminiscenceActivity: React.FC = () => {
     const feelingLabels = { happy: '😊 Happy', thoughtful: '🤔 Thoughtful', unsure: '❓ Unsure' };
     setReactionLog((prev) => ({ ...prev, [currentItem.id]: feelingLabels[feeling] }));
 
-    // Rule 3: Fire clean behavioral metrics logs straight into the central store room
-    logInteraction({
-      timestamp: clickTime,
-      actionType: 'click',
-      isCorrect: true, // Reminiscence responses are always intrinsically valid to prevent failure feelings
-      dwellTimeMs: dwellTime
-    });
+    // Rule 4: Route telemetry metrics safely across port 8000 to save straight to PostgreSQL tables
+    await logInteractionTelemetry(
+      'act_rem_002',       // activity_id matching our seeded database row
+      currentItem.id,      // content_id
+      'click',             // action_type
+      dwellTime,           // dwell_time_ms
+      true                 // is_correct (Reminiscence triggers are always intrinsically correct)
+    );
 
     if (currentIndex < memoryPool.length - 1) {
       setActiveMessage(`Moving to the next familiar sight. Let's look together.`);

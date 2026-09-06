@@ -1,113 +1,159 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '../../store/session.store';
 
 export const PatientCreatePage: React.FC = () => {
   const navigate = useNavigate();
-  
-  // Extract our dynamic store actions and loading state targets matching Rule 3
-  const { fetchPatientsRegistry, isLoading, error: storeError } = useSessionStore();
-  
-  // Local isolated UI form states (Bypasses state machines until save triggers)
-  const [aliasName, setAliasName] = useState('');
-  const [cognitiveTier, setCognitiveTier] = useState('medium');
-  const [localError, setLocalError] = useState<string | null>(null);
+  const fetchPatientsRegistry = useSessionStore((state) => state.fetchPatientsRegistry);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Core structured input tracking states
+  const [displayName, setDisplayName] = useState('');
+  const [preferredLanguage, setPreferredLanguage] = useState('en');
+  const [community, setCommunity] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<{ text: string; isError: boolean } | null>(null);
+
+  const handleFormSubmission = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLocalError(null);
+    setAlertMessage(null);
+    setIsSubmitting(true);
 
-    if (!aliasName.trim()) {
-      setLocalError('Please provide a valid privacy alias name.');
+    // Baseline validation rule checks
+    if (!displayName.trim() || !community.trim()) {
+      setAlertMessage({ text: '⚠️ Validation Error: Display Name and Cultural Community tags are required fields.', isError: true });
+      setIsSubmitting(false);
       return;
     }
 
     try {
-      // Rule 4: Route data pipeline safely straight through our client services layer
-      const response = await fetch('http://localhost:8000/patients/', {
+      // Hit our FastAPI backend POST /patients route over port 8000
+      const response = await fetch('http://localhost:8000/patients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          alias_name: aliasName,
-          cognitive_tier_baseline: cognitiveTier,
-          caregiver_id: 'cg_001' // Securely map into our pre-created caregiver account row
+          display_name: displayName.trim(),
+          caregiver_id: 'cg_001', // Attaching our frozen mock supervisor index
+          preferred_language: preferredLanguage,
+          community: community.trim()
         })
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        throw new Error('Database registry rejection. Ensure backend node is awake.');
+        // Automatically surface the security exception if the backend catches clinical diagnostic terms!
+        throw new Error(responseData.detail || 'Failed to persist patient registration profile.');
       }
 
-      // Re-trigger global registry refresh loop to update our dashboard state map instantly
+      setAlertMessage({ text: `🎉 Patient Profile Created Successfully! Generated Anonymous Key: ${responseData.id}`, isError: false });
+      
+      // Refresh the centralized Zustand store directory cache instantly
       await fetchPatientsRegistry();
       
-      // Navigate smoothly back to overview logs portal layout frame
-      navigate('/caregiver');
+      // Gracefully redirect back to the administrative patient grid screen
+      setTimeout(() => {
+        navigate('/caregiver');
+      }, 1500);
+
     } catch (err: any) {
-      setLocalError(err.message || 'Failed to submit registration data file.');
+      setAlertMessage({ text: `❌ ${err.message}`, isError: true });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div style={{ padding: '24px', fontFamily: 'sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: '100%', maxWidth: '520px', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '32px' }}>
+    <div style={{ maxWidth: '640px', margin: '40px auto', padding: '32px', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)', fontFamily: 'sans-serif' }}>
+      
+      {/* Title Header Block */}
+      <div style={{ marginBottom: '28px', borderBottom: '2px solid #f1f5f9', paddingBottom: '16px' }}>
+        <h2 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+          ➕ Mask New Patient Profile
+        </h2>
+        <p style={{ margin: '6px 0 0 0', color: '#64748b', fontSize: '0.95rem' }}>
+          Create an obfuscated alias configuration profile. No clinical diagnostics or raw medical descriptors permitted.
+        </p>
+      </div>
+
+      {/* Dynamic Feedback Display Banner Panel */}
+      {alertMessage && (
+        <div style={{ padding: '14px 18px', borderRadius: '10px', fontSize: '1rem', fontWeight: '600', marginBottom: '24px', backgroundColor: alertMessage.isError ? '#fef2f2' : '#f0fdf4', border: alertMessage.isError ? '1px solid #fee2e2' : '1px solid #bbf7d0', color: alertMessage.isError ? '#991b1b' : '#166534' }}>
+          {alertMessage.text}
+        </div>
+      )}
+
+      {/* Main Structural Entry Input Form */}
+      <form onSubmit={handleFormSubmission} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         
-        {/* Navigation Return Shortcut */}
-        <Link to="/caregiver" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#6366f1', fontWeight: '700', textDecoration: 'none', marginBottom: '20px', fontSize: '0.95rem' }}>
-          ⬅️ Back to Central Command
-        </Link>
+        {/* Field 1: Anonymous Alias Display Name */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label style={{ fontSize: '0.95rem', fontWeight: '700', color: '#334155' }}>
+            Display Alias / Token Name <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <input
+            type="text"
+            placeholder="e.g. Subject Delta, Patient Kappa (Do NOT use real names or severity metrics)"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            disabled={isSubmitting}
+            style={{ padding: '12px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '1rem', width: '100%', boxSizing: 'border-box' }}
+          />
+        </div>
 
-        <h2 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#0f172a', margin: '0 0 8px 0' }}>Register New Patient</h2>
-        <p style={{ color: '#64748b', fontSize: '1rem', margin: '0 0 28px 0' }}>Enforce data privacy policies by masking identity credentials with an absolute alias.</p>
+        {/* Field 2: Regional Cultural Community Tag */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label style={{ fontSize: '0.95rem', fontWeight: '700', color: '#334155' }}>
+            NER Cultural Community / Demographic Tag <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <input
+            type="text"
+            placeholder="e.g. Assamese, Mizo, Naga, Bodo"
+            value={community}
+            onChange={(e) => setCommunity(e.target.value)}
+            disabled={isSubmitting}
+            style={{ padding: '12px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '1rem', width: '100%', boxSizing: 'border-box' }}
+          />
+        </div>
 
-        {/* Error Feedback Overlay Panels */}
-        {(localError || storeError) && (
-          <div style={{ padding: '16px', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '12px', color: '#dc2626', marginBottom: '20px', fontWeight: '600', fontSize: '0.95rem' }}>
-            ⚠️ Registration Blocked: {localError || storeError}
-          </div>
-        )}
+        {/* Field 3: Preferred Communication Language Tag Dropdown */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label style={{ fontSize: '0.95rem', fontWeight: '700', color: '#334155' }}>
+            Primary Activity Localized Language
+          </label>
+          <select
+            value={preferredLanguage}
+            onChange={(e) => setPreferredLanguage(e.target.value)}
+            disabled={isSubmitting}
+            style={{ padding: '12px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '1rem', backgroundColor: '#ffffff', width: '100%', boxSizing: 'border-box' }}
+          >
+            <option value="en">English (en)</option>
+            <option value="as">Assamese (as)</option>
+            <option value="bn">Bengali (bn)</option>
+            <option value="lus">Mizo / Lushai (lus)</option>
+            <option value="ao">Ao Naga (ao)</option>
+          </select>
+        </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          {/* Privacy Alias String Field Input Container */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.95rem', fontWeight: '700', color: '#334155' }}>Privacy Alias Name</label>
-            <input 
-              type="text"
-              placeholder="e.g. Patient Beta, Subject 42"
-              value={aliasName}
-              onChange={(e) => setAliasName(e.target.value)}
-              disabled={isLoading}
-              style={{ padding: '12px 16px', border: '2px solid #cbd5e1', borderRadius: '10px', fontSize: '1rem', outline: 'none', width: '100%', boxSizing: 'border-box' }}
-            />
-          </div>
-
-          {/* Cognitive Performance Baseline Tier Selection Matrix */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.95rem', fontWeight: '700', color: '#334155' }}>Cognitive Performance Baseline</label>
-            <select
-              value={cognitiveTier}
-              onChange={(e) => setCognitiveTier(e.target.value)}
-              disabled={isLoading}
-              style={{ padding: '12px 16px', border: '2px solid #cbd5e1', borderRadius: '10px', fontSize: '1rem', outline: 'none', backgroundColor: '#ffffff', cursor: 'pointer', width: '100%' }}
-            >
-              <option value="low">Low (Requires maximum visual assistance prompt loops)</option>
-              <option value="medium">Medium (Standard adaptive timeline tracking triggers)</option>
-              <option value="high">High (Advanced problem structural mapping states)</option>
-            </select>
-          </div>
-
-          {/* Action Trigger Save Control Key */}
+        {/* Form Control Command Triggers */}
+        <div style={{ display: 'flex', justifyContent: 'end', gap: '14px', marginTop: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
+          <button
+            type="button"
+            onClick={() => navigate('/caregiver')}
+            disabled={isSubmitting}
+            style={{ padding: '12px 24px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', color: '#475569', fontSize: '1rem', fontWeight: '600', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
           <button
             type="submit"
-            disabled={isLoading}
-            style={{ marginTop: '12px', padding: '14px', backgroundColor: isLoading ? '#94a3b8' : '#4f46e5', color: '#ffffff', fontWeight: '700', fontSize: '1rem', border: 'none', borderRadius: '10px', cursor: isLoading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 6px -1px rgb(79 70 229 / 0.2)', transition: 'background-color 0.2s' }}
+            disabled={isSubmitting}
+            style={{ padding: '12px 28px', backgroundColor: '#4f46e5', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgb(79 70 229 / 0.15)' }}
           >
-            {isLoading ? 'Synchronizing Cluster Matrices...' : '💾 Save Profile to Database'}
+            {isSubmitting ? 'Registering...' : '💾 Save Profile Configuration'}
           </button>
+        </div>
 
-        </form>
-      </div>
+      </form>
     </div>
   );
 };
