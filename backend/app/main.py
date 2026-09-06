@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.routes.content import router as content_router
+
 import os
 
 # Import the new thin API routing endpoints we created for Phase 2
@@ -19,6 +21,7 @@ app.add_middleware(
 
 # Register the routes to your core application loop
 app.include_router(patient_router)
+app.include_router(content_router)
 app.include_router(session_router)
 
 @app.get("/health", tags=["System"])
