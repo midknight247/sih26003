@@ -45,7 +45,7 @@ class SessionManagerService:
         rand_suffix = random.randint(1000, 9999)
         # 1. Write the interaction footprint to the table
         new_interaction = Interaction(
-            id=f"int_{now.strftime('%Y%m%d%H%M%S%f')}_{dwell_time_ms}",
+            id=f"int_{now.strftime('%Y%m%d%H%M%S%f')}_{rand_suffix}_{dwell_time_ms}",
             session_id=session_id,
             activity_id=activity_id,
             content_id=content_id,
@@ -54,6 +54,7 @@ class SessionManagerService:
             is_correct=is_correct
         )
         self.db.add(new_interaction)
+        self.db.flush()
 
         # 2. Fetch or initialize the active continuous tracking metrics map state boundary row
         state_record = self.db.query(AdaptationState).filter(
@@ -73,6 +74,7 @@ class SessionManagerService:
                 baseline_response_time_ms=1000
             )
             self.db.add(state_record)
+            self.db.flush()
 
         # Update running consecutive performance counts dynamically
         if is_correct:
@@ -92,10 +94,15 @@ class SessionManagerService:
             baseline_response_time_ms=state_record.baseline_response_time_ms
         )
 
+        audit_reason = engine_eval["reason"]
+
         # 4. If a delta shift is declared, write the historical presentation log trail map for judges
         if engine_eval["action"] != "MAINTAIN":
+            dec_now = datetime.utcnow()
+            dec_rand = random.randint(1000, 9999)
+            
             decision_log = AdaptationDecision(
-                id=f"dec_{int(datetime.utcnow().timestamp())}",
+                id=f"dec_{dec_now.strftime('%Y%m%d%H%M%S%f')}_{dec_rand}",
                 session_id=session_id,
                 activity_id=activity_id,
                 interaction_id=new_interaction.id,
@@ -104,20 +111,19 @@ class SessionManagerService:
                 previous_challenge_level=state_record.challenge_level,
                 new_challenge_level=engine_eval["new_challenge_level"],
                 action=engine_eval["action"],
-                reason=engine_eval["reason"]
+                reason=engine_eval["reason"] # Preserves the complete combined reason string text
             )
             self.db.add(decision_log)
 
         # Commit state updates safely to table boundaries
         state_record.support_level = engine_eval["new_support_level"]
         state_record.challenge_level = engine_eval["new_challenge_level"]
-        
         self.db.commit()
 
         return {
             "status": "interaction_processed",
             "action_executed": engine_eval["action"],
-            "reason_generated": engine_eval["reason"],
+            "reason_generated": audit_reason,
             "current_support_level": state_record.support_level
         }
 

@@ -154,7 +154,7 @@ class AdaptationState(Base):
 class AdaptationDecision(Base):
     __tablename__ = "adaptation_decisions"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True)
     session_id = Column(String, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
     activity_id = Column(String, ForeignKey("activities.id", ondelete="CASCADE"), nullable=False, index=True)
     interaction_id = Column(String, ForeignKey("interactions.id", ondelete="CASCADE"), nullable=False, index=True)

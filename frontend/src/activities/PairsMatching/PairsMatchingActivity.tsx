@@ -1,160 +1,218 @@
 import React, { useState, useEffect } from 'react';
 import { useSessionStore } from '../../store/session.store';
 
-interface CardItem {
+interface AssociationCard {
   id: string;
-  uniqueId: string; // Combined index key to allow duplicate pairs on the canvas
   label: string;
   icon: string;
-  matchId: string;  // Ties the matching pairs together cleanly
+  matchId: string;
+  side: 'left' | 'right'; // Split items explicitly to support side-by-side comparison
 }
 
 export const PairsMatchingActivity: React.FC = () => {
-  // Pull core state actions and real-time support level indexes from the central Rule 3 store hook
+  // Pull live telemetry log actions and support tiers from the central store hook (Rule 3)
   const logInteractionTelemetry = useSessionStore((state) => state.logInteractionTelemetry);
   const currentSupportLevel = useSessionStore((state) => state.currentSupportLevel);
   const nextStep = useSessionStore((state) => state.nextStep);
 
   // Local state tracking memory triggers specific to the Northeast Region (NER)
-  const [cards, setCards] = useState<CardItem[]>([]);
-  const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
-  const [matchedIds, setMatchedIds] = useState<string[]>([]);
-  const [activeMessage, setActiveMessage] = useState('Touch two cards to find matching regional pairs.');
+  const [leftDeck, setLeftDeck] = useState<AssociationCard[]>([]);
+  const [rightDeck, setRightDeck] = useState<AssociationCard[]>([]);
+  const [selectedLeft, setSelectedLeft] = useState<number | null>(null);
+  const [selectedRight, setSelectedRight] = useState<number | null>(null);
+  const [matchedPairs, setMatchedPairs] = useState<string[]>([]);
+  const [activeMessage, setActiveMessage] = useState('Look at all items. Select one item from the left and its matching partner on the right.');
   const [startTime] = useState(Date.now());
 
-  // Initialize and shuffle card parameters on component mount
+  // Initialize separated decks on component mount (Items are ALWAYS visible face-up to prevent working memory drain)
   useEffect(() => {
-    const rawPairs = [
-      { id: 'tea_leaf', label: 'Tea Leaf Basket', icon: '🧺', matchId: 'pair_1' },
-      { id: 'tea_garden', label: 'Assam Tea Garden', icon: '🌿', matchId: 'pair_1' },
-      { id: 'rhino', label: 'One-Horned Rhino', icon: '🦏', matchId: 'pair_2' },
-      { id: 'kaziranga', label: 'Kaziranga Forest', icon: '🌳', matchId: 'pair_2' },
+    const leftItems: AssociationCard[] = [
+      { id: 'tea_leaf', label: 'Tea Leaf Basket', icon: '🧺', matchId: 'pair_1', side: 'left' },
+      { id: 'rhino', label: 'One-Horned Rhino', icon: '🦏', matchId: 'pair_2', side: 'left' },
     ];
 
-    // Duplicate and map unique keys for the layout grid canvas
-    const gameDeck: CardItem[] = [...rawPairs].map((card, idx) => ({
-      ...card,
-      uniqueId: `${card.id}_${idx}`
-    })).sort(() => Math.random() - 0.5); // Random shuffle matching stable MVP criteria bounds
+    const rightItems: AssociationCard[] = [
+      { id: 'tea_garden', label: 'Assam Tea Garden', icon: '🌿', matchId: 'pair_1', side: 'right' },
+      { id: 'kaziranga', label: 'Kaziranga Forest', icon: '🌳', matchId: 'pair_2', side: 'right' },
+    ];
 
-    setCards(gameDeck);
+    // Shuffle each deck independently to randomize target positions while maintaining visibility
+    setLeftDeck([...leftItems].sort(() => Math.random() - 0.5));
+    setRightDeck([...rightItems].sort(() => Math.random() - 0.5));
   }, []);
 
-  const handleCardTouch = async (clickedIndex: number) => {
-    // Safety block: prevent double-clicks, clicking flipped cards, or clicking locked pairs
-    if (flippedIndices.length >= 2 || flippedIndices.includes(clickedIndex) || matchedIds.includes(cards[clickedIndex].matchId)) {
-      return;
+  const handleSelection = async (index: number, side: 'left' | 'right') => {
+    let nextLeft = selectedLeft;
+    let nextRight = selectedRight;
+
+    if (side === 'left') {
+      // Toggle selection or select fresh card
+      nextLeft = selectedLeft === index ? null : index;
+      setSelectedLeft(nextLeft);
+    } else {
+      nextRight = selectedRight === index ? null : index;
+      setSelectedRight(nextRight);
     }
 
-    const currentFlipped = [...flippedIndices, clickedIndex];
-    setFlippedIndices(currentFlipped);
-
-    // If it's the second card being turned over, verify matching conditions
-    if (currentFlipped.length === 2) {
+    // Process matching check once one item from each side is active
+    if (nextLeft !== null && nextRight !== null) {
       const clickTime = Date.now();
       const dwellTime = clickTime - startTime;
       
-      const firstCard = cards[currentFlipped[0]];
-      const secondCard = cards[currentFlipped[1]];
+      const leftCard = leftDeck[nextLeft];
+      const rightCard = rightDeck[nextRight];
 
-      if (firstCard.matchId === secondCard.matchId) {
-        // 🌟 Found a valid link combination pair
-        setMatchedIds((prev) => [...prev, firstCard.matchId]);
-        setFlippedIndices([]);
-        setActiveMessage(`🌟 Wonderful! The ${firstCard.label} matches the ${secondCard.label}.`);
+      if (leftCard.matchId === rightCard.matchId) {
+        // 🌟 Correct Association Identified
+        setMatchedPairs((prev) => [...prev, leftCard.matchId]);
+        setActiveMessage(`🌟 Excellent! The "${leftCard.label}" belongs with the "${rightCard.label}".`);
+        
+        setSelectedLeft(null);
+        setSelectedRight(null);
 
-        // Rule 4: Sync interaction footprint directly to PostgreSQL tables via port 8000
+        // Rule 4: Sync interaction metrics over port 8000 live to PostgreSQL
         await logInteractionTelemetry(
-          'act_pairs_003',  // activity_id matching seeded master data
-          firstCard.id,     // content_id 
+          'act_pairs_003',  // activity_id
+          leftCard.id,      // content_id
           'click',          // action_type
           dwellTime,        // dwell_time_ms
           true              // is_correct
         );
       } else {
         // 🔊 Friction block: mismatched selection indices
-        setActiveMessage('🔊 Those items do not quite match. Try turning over another pair!');
+        setActiveMessage('🔊 Those two do not quite match. Look closely and try another combination!');
         
+        setSelectedLeft(null);
+        setSelectedRight(null);
+
         await logInteractionTelemetry(
           'act_pairs_003',
-          firstCard.id,
+          leftCard.id,
           'click',
           dwellTime,
-          false // Logs a struggle footprint to trigger Adaptation Engine assistance levels if criteria match
+          false // Logs a struggle footprint to fire the Adaptation Engine logic loops
         );
-
-        // Turn the cards back face-down after a brief accessible display delay window
-        setTimeout(() => {
-          setFlippedIndices([]);
-        }, 1500);
       }
     }
   };
 
-  const isGameComplete = cards.length > 0 && matchedIds.length === (cards.length / 2);
+  const isGameComplete = leftDeck.length > 0 && matchedPairs.length === leftDeck.length;
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '32px', fontFamily: 'sans-serif' }}>
       
-      {/* High-Contrast Interactive Feedback Alert Banner */}
+      {/* Dynamic Accessible Feedback Panel Indicator */}
       <div style={{ padding: '16px 24px', backgroundColor: '#f8fafc', border: '2px solid #cbd5e1', borderRadius: '16px', fontSize: '1.25rem', fontWeight: '700', color: '#0f172a', textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
         {activeMessage}
       </div>
 
-      {/* Main Structural Matching Card Grid Canvas */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 140px)', gap: '24px', justifyContent: 'center' }}>
-        {cards.map((card, index) => {
-          const isFlipped = flippedIndices.includes(index);
-          const isMatched = matchedIds.includes(card.matchId);
-          const showFace = isFlipped || isMatched || currentSupportLevel > 0; // Support Level 1 exposes hints automatically
+      {/* Side-by-Side Visual Split Arena Grid Layout */}
+      <div style={{ display: 'flex', gap: '60px', justifyContent: 'center', width: '100%', maxWidth: '640px', boxSizing: 'border-box' }}>
+        
+        {/* LEFT COLUMN: Cultural Anchor Base Cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <h4 style={{ margin: 0, textAlign: 'center', color: '#4f46e5', fontWeight: '800' }}>Left Group</h4>
+          {leftDeck.map((card, index) => {
+            const isMatched = matchedPairs.includes(card.matchId);
+            const isSelected = selectedLeft === index;
+            // Rule 5 Hint: If support escalates, automatically flash matching borders to clear friction
+            const hasSupportHint = currentSupportLevel > 0 && selectedRight !== null && rightDeck[selectedRight].matchId === card.matchId;
 
-          return (
-            <button
-              key={card.uniqueId}
-              onClick={() => handleCardTouch(index)}
-              disabled={isMatched}
-              style={{
-                width: '140px',
-                height: '140px',
-                backgroundColor: showFace ? '#ffffff' : '#4f46e5',
-                border: isMatched ? '4px solid #22c55e' : '4px solid #6366f1',
-                borderRadius: '24px',
-                fontSize: showFace ? '3.5rem' : '0rem', // Collapses icon visibility safely if facedown
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: isMatched ? 'default' : 'pointer',
-                boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.05)',
-                transition: 'background-color 0.2s, transform 0.1s',
-              }}
-            >
-              {showFace ? (
-                <>
-                  {card.icon}
-                  <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#475569', marginTop: '6px', textAlign: 'center', display: 'block', padding: '0 4px' }}>
-                    {card.label}
-                  </span>
-                </>
-              ) : (
-                <span style={{ fontSize: '2rem', color: '#ffffff', fontWeight: '800' }}>?</span>
-              )}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={card.id}
+                onClick={() => !isMatched && handleSelection(index, 'left')}
+                disabled={isMatched}
+                style={{
+                  width: '140px',
+                  height: '140px',
+                  backgroundColor: isMatched ? '#f0fdf4' : '#ffffff',
+                  border: isMatched 
+                    ? '4px solid #22c55e' 
+                    : hasSupportHint
+                    ? '5px solid #eab308' // Glowing yellow support prompt border
+                    : isSelected 
+                    ? '4px solid #4f46e5' 
+                    : '3px solid #cbd5e1',
+                  borderRadius: '24px',
+                  fontSize: '3.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: isMatched ? 'default' : 'pointer',
+                  opacity: isMatched ? 0.5 : 1,
+                  boxShadow: hasSupportHint ? '0 0 15px #fde047' : '0 4px 6px -1px rgb(0 0 0 / 0.05)',
+                  transition: 'border-color 0.15s, transform 0.1s'
+                }}
+              >
+                {card.icon}
+                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#475569', marginTop: '6px', textAlign: 'center', display: 'block' }}>
+                  {card.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* RIGHT COLUMN: Associative Match Cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <h4 style={{ margin: 0, textAlign: 'center', color: '#4f46e5', fontWeight: '800' }}>Right Group</h4>
+          {rightDeck.map((card, index) => {
+            const isMatched = matchedPairs.includes(card.matchId);
+            const isSelected = selectedRight === index;
+            const hasSupportHint = currentSupportLevel > 0 && selectedLeft !== null && leftDeck[selectedLeft].matchId === card.matchId;
+
+            return (
+              <button
+                key={card.id}
+                onClick={() => !isMatched && handleSelection(index, 'right')}
+                disabled={isMatched}
+                style={{
+                  width: '140px',
+                  height: '140px',
+                  backgroundColor: isMatched ? '#f0fdf4' : '#ffffff',
+                  border: isMatched 
+                    ? '4px solid #22c55e' 
+                    : hasSupportHint
+                    ? '5px solid #eab308'
+                    : isSelected 
+                    ? '4px solid #4f46e5' 
+                    : '3px solid #cbd5e1',
+                  borderRadius: '24px',
+                  fontSize: '3.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: isMatched ? 'default' : 'pointer',
+                  opacity: isMatched ? 0.5 : 1,
+                  boxShadow: hasSupportHint ? '0 0 15px #fde047' : '0 4px 6px -1px rgb(0 0 0 / 0.05)',
+                  transition: 'border-color 0.15s, transform 0.1s'
+                }}
+              >
+                {card.icon}
+                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#475569', marginTop: '6px', textAlign: 'center', display: 'block' }}>
+                  {card.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
       </div>
 
-      {/* Rule 5 Hint Overlay Panel (Fires only if triggered by backend math exceptions) */}
+            {/* Rule 5 Low-Friction Hint Panel Overlay */}
       {currentSupportLevel > 0 && (
-        <div style={{ width: '100%', maxWidth: '400px', backgroundColor: '#eff6ff', border: '2px solid #bfdbfe', borderRadius: '16px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ width: '100%', maxWidth: '440px', backgroundColor: '#eff6ff', border: '2px solid #bfdbfe', borderRadius: '16px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <span style={{ fontSize: '2rem' }}>💡</span>
           <p style={{ margin: 0, fontSize: '1.1rem', color: '#1e3a8a', fontWeight: '600' }}>
-            Support Active: Cards have been turned semi-visible to assist memory alignment. Take your time!
+            Support Level {currentSupportLevel} Active: Select an item, and the target matching card will glow with a golden star frame to guide your path.
           </p>
         </div>
       )}
 
-      {/* Completion Advance Step Action Key */}
+      {/* Completion Stage Advance Command Button */}
       {isGameComplete && (
         <button
           onClick={() => { nextStep(); window.location.href = '/caregiver'; }}
